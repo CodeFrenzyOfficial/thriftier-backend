@@ -2,9 +2,9 @@
   "name": "node-ts-backend-starter",
   "version": "1.0.0",
   "description": "Production-ready Node.js backend starter with TypeScript, Express, and layered architecture.",
-  "main": "dist/server.js",
+  "main": "server.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "nodemon src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },

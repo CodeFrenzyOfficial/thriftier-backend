@@ -1,14 +1,18 @@
 import http from "http";
 import { createApp } from "./app";
-import { config } from "./config/env";
 import { logger } from "./utils/logger";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = createApp();
 const server = http.createServer(app);
-const PORT = config.port;
+const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT} in ${config.nodeEnv} mode`);
+  logger.info(
+    `Server running on port http://localhost:${PORT} in ${process.env.NODE_ENV} mode`
+  );
 });
 
 const shutdown = (signal: string) => {
