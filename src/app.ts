@@ -27,16 +27,25 @@ export const createApp = (): Application => {
     windowMs: 15 * 60 * 1000,
     max: 100,
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
   });
   app.use("/api", apiLimiter);
+
+  // Root route
+  app.get("/", (_req, res) => {
+    res.status(StatusCodes.OK).json({
+      message: "Hello World",
+      api: "/api/v1",
+      health: "/health",
+    });
+  });
 
   // Health check root
   app.get("/health", (_req, res) => {
     res.status(StatusCodes.OK).json({
       status: "ok",
       uptime: process.uptime(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   });
 
