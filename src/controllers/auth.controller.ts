@@ -130,6 +130,29 @@ const verifyEmail = catchAsync(
     });
   }
 );
+
+/**
+ * Change user password
+ * PUT /api/v1/auth/change-password
+ * Requires authentication
+ */
+const changePassword = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { currentPassword, newPassword } = req.body;
+
+    await authService.changePassword(
+      req.user!.userId,
+      currentPassword,
+      newPassword
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  }
+);
+
 export const authController = {
   register,
   login,
@@ -137,4 +160,5 @@ export const authController = {
   logout,
   getMe,
   verifyEmail,
+  changePassword,
 };

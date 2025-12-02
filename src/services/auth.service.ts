@@ -353,6 +353,61 @@ const checkOwnerOrAdmin = (
   return userRole === Role.ADMIN || userId === resourceUserId;
 };
 
+/**
+ * Change user password
+ */
+const changePassword = async (
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> => {
+  // Validate inputs
+  const errors: string[] = [];
+
+  if (!currentPassword) {
+    errors.push("Current password is required");
+  }
+
+  if (!newPassword) {
+    errors.push("New password is required");
+  } else if (newPassword.length < 8) {
+    errors.push("New password must be at least 8 characters long");
+  }
+
+  if (errors.length > 0) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, errors.join(", "));
+  }
+
+  // Get user with password
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+
+  // Verify current password
+  const isPasswordValid = await comparePassword(currentPassword, user.password);
+  if (!isPasswordValid) {
+    throw new ApiError(
+      StatusCodes.UNAUTHORIZED,
+      "Current password is incorrect"
+    );
+  }
+
+  // Hash new password
+  const hashedPassword = await hashPassword(newPassword);
+
+  // Update password
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+
+  logger.info(`Password changed for user: ${userId}`);
+};
+
 export const authService = {
   register,
   login,
@@ -363,4 +418,5 @@ export const authService = {
   verifyAuthToken,
   checkUserRole,
   checkOwnerOrAdmin,
+  changePassword,
 };

@@ -49,4 +49,11 @@ router.get("/me", authenticate, authController.getMe);
  */
 router.post("/verify-email", authenticate, authController.verifyEmail);
 
+/**
+ * @route   PUT /api/v1/auth/change-password
+ * @desc    Change user password
+ * @access  Private
+ */
+router.put("/change-password", authenticate, authController.changePassword);
+
 export default router;
