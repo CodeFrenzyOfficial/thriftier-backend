@@ -5,6 +5,7 @@ This guide will help you set up automated deployment to your staging server when
 ## 📋 Prerequisites
 
 1. A staging server (VPS/Cloud instance) with:
+
    - Ubuntu/Debian Linux
    - Node.js 20.x installed
    - PostgreSQL installed
@@ -73,17 +74,17 @@ Go to your GitHub repository → Settings → Secrets and variables → Actions 
 
 Add the following secrets:
 
-| Secret Name | Description | Example Value |
-|------------|-------------|---------------|
-| `STAGING_SSH_KEY` | Private SSH key (from step 3 above) | `-----BEGIN OPENSSH PRIVATE KEY-----\n...` |
-| `STAGING_HOST` | Your staging server IP or domain | `staging.yourdomain.com` or `123.45.67.89` |
-| `STAGING_USER` | SSH username | `ubuntu` or your username |
-| `STAGING_PATH` | Deployment directory on server | `/var/www/thrifter-backend-staging` |
-| `STAGING_DATABASE_URL` | PostgreSQL connection string | `postgresql://thrifter_staging:password@localhost:5432/thrifter_staging` |
-| `STAGING_JWT_SECRET` | JWT secret key | `your-super-secret-jwt-key-change-this` |
-| `STAGING_JWT_ACCESS_EXPIRATION` | Access token expiry | `1h` |
-| `STAGING_JWT_REFRESH_EXPIRATION` | Refresh token expiry | `7d` |
-| `STAGING_CORS_ORIGIN` | Frontend URL | `https://staging-admin.yourdomain.com` |
+| Secret Name                      | Description                         | Example Value                                                            |
+| -------------------------------- | ----------------------------------- | ------------------------------------------------------------------------ |
+| `STAGING_SSH_KEY`                | Private SSH key (from step 3 above) | `-----BEGIN OPENSSH PRIVATE KEY-----\n...`                               |
+| `STAGING_HOST`                   | Your staging server IP or domain    | `staging.yourdomain.com` or `123.45.67.89`                               |
+| `STAGING_USER`                   | SSH username                        | `ubuntu` or your username                                                |
+| `STAGING_PATH`                   | Deployment directory on server      | `/var/www/thrifter-backend-staging`                                      |
+| `STAGING_DATABASE_URL`           | PostgreSQL connection string        | `postgresql://thrifter_staging:password@localhost:5432/thrifter_staging` |
+| `STAGING_JWT_SECRET`             | JWT secret key                      | `your-super-secret-jwt-key-change-this`                                  |
+| `STAGING_JWT_ACCESS_EXPIRATION`  | Access token expiry                 | `1h`                                                                     |
+| `STAGING_JWT_REFRESH_EXPIRATION` | Refresh token expiry                | `7d`                                                                     |
+| `STAGING_CORS_ORIGIN`            | Frontend URL                        | `https://staging-admin.yourdomain.com`                                   |
 
 ## 🌿 Create Staging Branch
 
@@ -245,8 +246,8 @@ npx prisma migrate deploy
 ## 🆘 Support
 
 If you encounter issues:
+
 1. Check the logs: `pm2 logs thrifter-backend-staging`
 2. Review GitHub Actions workflow run
 3. Verify all secrets are correctly configured
 4. Check server resources (CPU, RAM, Disk)
-
