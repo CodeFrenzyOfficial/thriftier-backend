@@ -1,5 +1,5 @@
 import express, { Application } from "express";
-import cors from "cors";
+// import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
@@ -14,7 +14,9 @@ export const createApp = (): Application => {
 
   // Basic security and parsers
   app.use(helmet());
-  app.use(cors());
+  // app.use(cors({
+  //   origin: "*"
+  // }));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
