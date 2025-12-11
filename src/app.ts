@@ -7,6 +7,7 @@ import { StatusCodes } from "http-status-codes";
 import routes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFoundHandler } from "./middlewares/notFoundHandler";
+import { initPrisma } from "./db";
 
 export const createApp = (): Application => {
   const app = express();
@@ -16,6 +17,9 @@ export const createApp = (): Application => {
   app.use(cors());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Initialize Prisma DB connection on server start
+  initPrisma();
 
   // Logging
   if (process.env.NODE_ENV !== "test") {
