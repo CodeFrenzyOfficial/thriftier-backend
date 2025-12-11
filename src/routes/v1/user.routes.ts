@@ -23,6 +23,13 @@ router.get("/", authenticate, isAdmin, userController.getUsers);
 router.post("/", authenticate, isAdmin, userController.createUser);
 
 /**
+ * @route   GET /api/v1/users/stats
+ * @desc    Get user statistics (Admin only)
+ * @access  Private/Admin
+ */
+router.get("/stats", authenticate, isAdmin, userController.getUserStats);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Get user by ID (Owner or Admin)
  * @access  Private

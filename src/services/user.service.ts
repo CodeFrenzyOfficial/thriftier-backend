@@ -279,10 +279,75 @@ const deleteUser = async (id: string): Promise<void> => {
   });
 };
 
+/**
+ * Get user statistics
+ */
+const getUserStats = async (): Promise<{
+  totalUsers: number;
+  activeUsers: number;
+  adminCount: number;
+  driverCount: number;
+  newUsersThisMonth: number;
+}> => {
+  const { Role } = require("@prisma/client");
+
+  // Get total users (excluding deleted)
+  const totalUsers = await prisma.user.count({
+    where: { deletedAt: null },
+  });
+
+  // Get active users
+  const activeUsers = await prisma.user.count({
+    where: {
+      isActive: true,
+      deletedAt: null,
+    },
+  });
+
+  // Get admin count
+  const adminCount = await prisma.user.count({
+    where: {
+      role: Role.ADMIN,
+      deletedAt: null,
+    },
+  });
+
+  // Get driver count
+  const driverCount = await prisma.user.count({
+    where: {
+      role: Role.DRIVER,
+      deletedAt: null,
+    },
+  });
+
+  // Get new users this month
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const newUsersThisMonth = await prisma.user.count({
+    where: {
+      createdAt: {
+        gte: startOfMonth,
+      },
+      deletedAt: null,
+    },
+  });
+
+  return {
+    totalUsers,
+    activeUsers,
+    adminCount,
+    driverCount,
+    newUsersThisMonth,
+  };
+};
+
 export const userService = {
   getUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUser,
+  getUserStats,
 };
