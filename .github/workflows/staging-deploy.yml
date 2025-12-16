@@ -40,21 +40,28 @@ jobs:
           JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
           CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
         run: |
+          set -euo pipefail
+
+          # Fail fast if required secrets are missing/empty (prevents Prisma P1012 later)
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "❌ STAGING_DATABASE_URL secret is empty or missing"
+            exit 1
+          fi
           mkdir -p deploy
           cp -r dist deploy/
           cp -r prisma deploy/
           cp package*.json deploy/
 
           # Create .env file locally with actual values
-          cat > deploy/.env << EOF
-          NODE_ENV=staging
-          PORT=3000
-          DATABASE_URL=$DATABASE_URL
-          JWT_SECRET=$JWT_SECRET
-          JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
-          JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
-          CORS_ORIGIN=$CORS_ORIGIN
-          EOF
+          {
+            echo "NODE_ENV=staging"
+            echo "PORT=3000"
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION"
+            echo "JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION"
+            echo "CORS_ORIGIN=$CORS_ORIGIN"
+          } > deploy/.env
 
           tar -czf deploy.tar.gz deploy/
 
