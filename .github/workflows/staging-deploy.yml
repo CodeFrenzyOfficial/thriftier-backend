@@ -44,7 +44,7 @@ jobs:
           cp -r dist deploy/
           cp -r prisma deploy/
           cp package*.json deploy/
-          
+
           # Create .env file locally with actual values
           cat > deploy/.env << EOF
           NODE_ENV=staging
@@ -55,7 +55,7 @@ jobs:
           JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
           CORS_ORIGIN=$CORS_ORIGIN
           EOF
-          
+
           tar -czf deploy.tar.gz deploy/
 
       - name: 🔐 Setup SSH key
@@ -106,7 +106,7 @@ jobs:
             npx prisma migrate deploy
 
             # Restart application (using PM2)
-            pm2 restart thrifter-backend-staging || pm2 start dist/index.js --name thrifter-backend-staging
+            pm2 restart Thrifter_Backend_Staging || pm2 start dist/index.js --name Thrifter_Backend_Staging
             pm2 save
 
             # Cleanup

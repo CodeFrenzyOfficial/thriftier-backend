@@ -50,6 +50,10 @@ export const createApp = (): Application => {
       status: "ok",
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || "development",
+      nodeVersion: process.version,
+      workingDirectory: process.cwd(),
+      memoryUsage: process.memoryUsage(),
     });
   });
 
