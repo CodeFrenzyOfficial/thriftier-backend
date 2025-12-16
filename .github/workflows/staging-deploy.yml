@@ -33,11 +33,29 @@ jobs:
         continue-on-error: true
 
       - name: 📋 Create deployment package
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          JWT_ACCESS_EXPIRATION: ${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
+          JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
+          CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
         run: |
           mkdir -p deploy
           cp -r dist deploy/
           cp -r prisma deploy/
           cp package*.json deploy/
+          
+          # Create .env file locally with actual values
+          cat > deploy/.env << EOF
+          NODE_ENV=staging
+          PORT=3000
+          DATABASE_URL=$DATABASE_URL
+          JWT_SECRET=$JWT_SECRET
+          JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
+          JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
+          CORS_ORIGIN=$CORS_ORIGIN
+          EOF
+          
           tar -czf deploy.tar.gz deploy/
 
       - name: 🔐 Setup SSH key
@@ -82,16 +100,7 @@ jobs:
             # Install production dependencies
             npm ci --only=production
 
-            # Create .env file
-            cat > .env << 'ENVEOF'
-          NODE_ENV=staging
-          PORT=3000
-          DATABASE_URL=$DATABASE_URL
-          JWT_SECRET=$JWT_SECRET
-          JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
-          JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
-          CORS_ORIGIN=$CORS_ORIGIN
-          ENVEOF
+            # .env file already included in deployment package
 
             # Run database migrations
             npx prisma migrate deploy
