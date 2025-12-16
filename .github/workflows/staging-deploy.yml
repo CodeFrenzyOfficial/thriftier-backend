@@ -59,12 +59,15 @@ jobs:
           # Add server to known hosts
           ssh-keyscan -H $STAGING_HOST >> ~/.ssh/known_hosts
 
+          # Ensure deployment folder exists
+          ssh $STAGING_USER@$STAGING_HOST "mkdir -p $STAGING_PATH"
+
           # Upload deployment package
           scp deploy.tar.gz $STAGING_USER@$STAGING_HOST:$STAGING_PATH/
 
           # Execute deployment script on server
-          ssh $STAGING_USER@$STAGING_HOST << 'EOF'
-            cd ${{ secrets.STAGING_PATH }}
+          ssh $STAGING_USER@$STAGING_HOST << EOF
+            cd $STAGING_PATH
 
             # Backup current version
             if [ -d "current" ]; then
@@ -80,15 +83,15 @@ jobs:
             npm ci --only=production
 
             # Create .env file
-            cat > .env << 'ENVEOF'
-          NODE_ENV=staging
-          PORT=3000
-          DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}
-          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
-          JWT_ACCESS_EXPIRATION=${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
-          JWT_REFRESH_EXPIRATION=${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
-          CORS_ORIGIN=${{ secrets.STAGING_CORS_ORIGIN }}
-          ENVEOF
+            cat > .env << ENVEOF
+NODE_ENV=staging
+PORT=3000
+DATABASE_URL=$DATABASE_URL
+JWT_SECRET=$JWT_SECRET
+JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
+JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
+CORS_ORIGIN=$CORS_ORIGIN
+ENVEOF
 
             # Run database migrations
             npx prisma migrate deploy
@@ -107,7 +110,7 @@ jobs:
       - name: ✅ Deployment successful
         run: |
           echo "🎉 Backend deployed to staging successfully!"
-          echo "🔗 Staging URL: https://staging-api.yourdomain.com"
+          echo "🔗 Staging URL: https://api.gothriftier.com"
           echo "📅 Deployed at: $(date)"
 
       - name: 🚨 Notify on failure
