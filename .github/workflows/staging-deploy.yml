@@ -103,7 +103,8 @@ jobs:
             # .env file already included in deployment package
 
             # Run database migrations
-            npx prisma migrate deploy
+            npx prisma migrate deploy --schema=prisma/schema.prisma --dotenv=.env
+
 
             # Restart application (using PM2)
             pm2 restart Thrifter_Backend_Staging || pm2 start dist/index.js --name Thrifter_Backend_Staging
