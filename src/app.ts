@@ -33,13 +33,13 @@ export const createApp = (): Application => {
     standardHeaders: true,
     legacyHeaders: false,
   });
-  app.use("/api", apiLimiter);
+  app.use("/v1", apiLimiter);
 
   // Root route
   app.get("/", (_req, res) => {
     res.status(StatusCodes.OK).json({
       message: "Hello World",
-      api: "/api/v1",
+      api: "/v1",
       health: "/health",
     });
   });
@@ -54,7 +54,7 @@ export const createApp = (): Application => {
   });
 
   // API routes
-  app.use("/api", routes);
+  app.use("", routes);
 
   // 404 handler
   app.use(notFoundHandler);
