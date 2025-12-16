@@ -47,14 +47,14 @@ jobs:
 
           # Create .env file locally with actual values
           cat > deploy/.env << EOF
-          NODE_ENV=staging
-          PORT=3000
-          DATABASE_URL=$DATABASE_URL
-          JWT_SECRET=$JWT_SECRET
-          JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
-          JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
-          CORS_ORIGIN=$CORS_ORIGIN
-          EOF
+NODE_ENV=staging
+PORT=3000
+DATABASE_URL=$DATABASE_URL
+JWT_SECRET=$JWT_SECRET
+JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
+JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
+CORS_ORIGIN=$CORS_ORIGIN
+EOF
 
           tar -czf deploy.tar.gz deploy/
 
@@ -102,8 +102,8 @@ jobs:
 
             # .env file already included in deployment package
 
-            # Run database migrations
-            npx prisma migrate deploy --schema=prisma/schema.prisma --dotenv=.env
+            # Run database migrations (Prisma auto-loads .env from current directory)
+            npx prisma migrate deploy
 
 
             # Restart application (using PM2)
