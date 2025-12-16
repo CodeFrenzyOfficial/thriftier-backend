@@ -53,25 +53,22 @@ jobs:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
           JWT_ACCESS_EXPIRATION: ${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
-          JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_REFRESH_EXPIRATION }}
+          JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
           CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
         run: |
           # Add server to known hosts
           ssh-keyscan -H $STAGING_HOST >> ~/.ssh/known_hosts
 
-          # Ensure deployment folder exists
-          ssh $STAGING_USER@$STAGING_HOST "mkdir -p $STAGING_PATH"
-
           # Upload deployment package
           scp deploy.tar.gz $STAGING_USER@$STAGING_HOST:$STAGING_PATH/
 
-          # Execute deployment script
-          ssh $STAGING_USER@$STAGING_HOST "
-            cd $STAGING_PATH
+          # Execute deployment script on server
+          ssh $STAGING_USER@$STAGING_HOST << 'EOF'
+            cd ${{ secrets.STAGING_PATH }}
 
             # Backup current version
-            if [ -d 'current' ]; then
-              mv current backup-\$(date +%Y%m%d-%H%M%S)
+            if [ -d "current" ]; then
+              mv current backup-$(date +%Y%m%d-%H%M%S)
             fi
 
             # Extract new version
@@ -84,19 +81,19 @@ jobs:
 
             # Create .env file
             cat > .env << 'ENVEOF'
-NODE_ENV=staging
-PORT=3000
-DATABASE_URL=$DATABASE_URL
-JWT_SECRET=$JWT_SECRET
-JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
-JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
-CORS_ORIGIN=$CORS_ORIGIN
-ENVEOF
+          NODE_ENV=staging
+          PORT=3000
+          DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}
+          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
+          JWT_ACCESS_EXPIRATION=${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
+          JWT_REFRESH_EXPIRATION=${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
+          CORS_ORIGIN=${{ secrets.STAGING_CORS_ORIGIN }}
+          ENVEOF
 
             # Run database migrations
             npx prisma migrate deploy
 
-            # Restart application (PM2)
+            # Restart application (using PM2)
             pm2 restart thrifter-backend-staging || pm2 start dist/index.js --name thrifter-backend-staging
             pm2 save
 
@@ -104,16 +101,13 @@ ENVEOF
             rm ../deploy.tar.gz
 
             # Keep only last 3 backups
-            cd ..
-            ls -t backup-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
-
-            echo '✅ Backend deployment completed successfully!'
-          "
+            ls -t ../backup-* 2>/dev/null | tail -n +4 | xargs rm -rf
+          EOF
 
       - name: ✅ Deployment successful
         run: |
           echo "🎉 Backend deployed to staging successfully!"
-          echo "🔗 Staging URL: https://api.gothriftier.com"
+          echo "🔗 Staging URL: https://staging-api.yourdomain.com"
           echo "📅 Deployed at: $(date)"
 
       - name: 🚨 Notify on failure
