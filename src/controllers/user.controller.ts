@@ -92,10 +92,24 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+/**
+ * Get user statistics (Admin only)
+ */
+const getUserStats = catchAsync(async (req: Request, res: Response) => {
+  const stats = await userService.getUserStats();
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    message: "User statistics retrieved successfully",
+    data: stats,
+  });
+});
+
 export const userController = {
   getUsers,
   createUser,
   getUserById,
   updateUser,
   deleteUser,
+  getUserStats,
 };

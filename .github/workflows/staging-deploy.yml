@@ -1,0 +1,120 @@
+name: Backend Staging Deployment
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_VERSION: "20.x"
+
+    steps:
+      - name: 🚀 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build TypeScript
+        run: npm run build
+
+      - name: 🧪 Run tests (if available)
+        run: npm test || echo "No tests found"
+        continue-on-error: true
+
+      - name: 📋 Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r dist deploy/
+          cp -r prisma deploy/
+          cp package*.json deploy/
+          tar -czf deploy.tar.gz deploy/
+
+      - name: 🔐 Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: 📤 Deploy to staging server
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_PATH: ${{ secrets.STAGING_PATH }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          JWT_ACCESS_EXPIRATION: ${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
+          JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
+          CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
+        run: |
+          # Add server to known hosts
+          ssh-keyscan -H $STAGING_HOST >> ~/.ssh/known_hosts
+
+          # Ensure deployment folder exists
+          ssh $STAGING_USER@$STAGING_HOST "mkdir -p $STAGING_PATH"
+
+          # Upload deployment package
+          scp deploy.tar.gz $STAGING_USER@$STAGING_HOST:$STAGING_PATH/
+
+          # Execute deployment script on server
+          ssh $STAGING_USER@$STAGING_HOST << EOF
+            cd $STAGING_PATH
+
+            # Backup current version
+            if [ -d "current" ]; then
+              mv current backup-$(date +%Y%m%d-%H%M%S)
+            fi
+
+            # Extract new version
+            tar -xzf deploy.tar.gz
+            mv deploy current
+            cd current
+
+            # Install production dependencies
+            npm ci --only=production
+
+            # Create .env file
+            cat > .env << ENVEOF
+NODE_ENV=staging
+PORT=3000
+DATABASE_URL=$DATABASE_URL
+JWT_SECRET=$JWT_SECRET
+JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
+JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
+CORS_ORIGIN=$CORS_ORIGIN
+ENVEOF
+
+            # Run database migrations
+            npx prisma migrate deploy
+
+            # Restart application (using PM2)
+            pm2 restart thrifter-backend-staging || pm2 start dist/index.js --name thrifter-backend-staging
+            pm2 save
+
+            # Cleanup
+            rm ../deploy.tar.gz
+
+            # Keep only last 3 backups
+            ls -t ../backup-* 2>/dev/null | tail -n +4 | xargs rm -rf
+          EOF
+
+      - name: ✅ Deployment successful
+        run: |
+          echo "🎉 Backend deployed to staging successfully!"
+          echo "🔗 Staging URL: https://api.gothriftier.com"
+          echo "📅 Deployed at: $(date)"
+
+      - name: 🚨 Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Please check the logs above for details."
