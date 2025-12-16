@@ -84,14 +84,14 @@ jobs:
 
             # Create .env file
             cat > .env << 'ENVEOF'
-NODE_ENV=staging
-PORT=3000
-DATABASE_URL=$DATABASE_URL
-JWT_SECRET=$JWT_SECRET
-JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
-JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
-CORS_ORIGIN=$CORS_ORIGIN
-ENVEOF
+          NODE_ENV=staging
+          PORT=3000
+          DATABASE_URL=$DATABASE_URL
+          JWT_SECRET=$JWT_SECRET
+          JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION
+          JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION
+          CORS_ORIGIN=$CORS_ORIGIN
+          ENVEOF
 
             # Run database migrations
             npx prisma migrate deploy
