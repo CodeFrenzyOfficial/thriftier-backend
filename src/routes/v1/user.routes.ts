@@ -34,6 +34,7 @@ router.get("/stats", authenticate, isAdmin, userController.getUserStats);
  * @desc    Get user by ID (Owner or Admin)
  * @access  Private
  */
+// hi this is test
 router.get("/:id", authenticate, isOwnerOrAdmin, userController.getUserById);
 
 /**
