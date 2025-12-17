@@ -33,11 +33,36 @@ jobs:
         continue-on-error: true
 
       - name: 📋 Create deployment package
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          JWT_ACCESS_EXPIRATION: ${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
+          JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
+          CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
         run: |
+          set -euo pipefail
+
+          # Fail fast if required secrets are missing/empty (prevents Prisma P1012 later)
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "❌ STAGING_DATABASE_URL secret is empty or missing"
+            exit 1
+          fi
           mkdir -p deploy
           cp -r dist deploy/
           cp -r prisma deploy/
           cp package*.json deploy/
+
+          # Create .env file locally with actual values
+          {
+            echo "NODE_ENV=staging"
+            echo "PORT=3000"
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION"
+            echo "JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION"
+            echo "CORS_ORIGIN=$CORS_ORIGIN"
+          } > deploy/.env
+
           tar -czf deploy.tar.gz deploy/
 
       - name: 🔐 Setup SSH key
@@ -59,16 +84,19 @@ jobs:
           # Add server to known hosts
           ssh-keyscan -H $STAGING_HOST >> ~/.ssh/known_hosts
 
+          # Ensure deployment folder exists
+          ssh $STAGING_USER@$STAGING_HOST "mkdir -p $STAGING_PATH"
+
           # Upload deployment package
           scp deploy.tar.gz $STAGING_USER@$STAGING_HOST:$STAGING_PATH/
 
           # Execute deployment script on server
-          ssh $STAGING_USER@$STAGING_HOST << 'EOF'
-            cd ${{ secrets.STAGING_PATH }}
+          ssh $STAGING_USER@$STAGING_HOST "
+            cd $STAGING_PATH
 
             # Backup current version
-            if [ -d "current" ]; then
-              mv current backup-$(date +%Y%m%d-%H%M%S)
+            if [ -d 'current' ]; then
+              mv current backup-\$(date +%Y%m%d-%H%M%S)
             fi
 
             # Extract new version
@@ -79,35 +107,30 @@ jobs:
             # Install production dependencies
             npm ci --only=production
 
-            # Create .env file
-            cat > .env << 'ENVEOF'
-          NODE_ENV=staging
-          PORT=3000
-          DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}
-          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
-          JWT_ACCESS_EXPIRATION=${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
-          JWT_REFRESH_EXPIRATION=${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
-          CORS_ORIGIN=${{ secrets.STAGING_CORS_ORIGIN }}
-          ENVEOF
+            # .env file already included in deployment package
 
-            # Run database migrations
+            # Run database migrations (Prisma auto-loads .env from current directory)
             npx prisma migrate deploy
 
+
             # Restart application (using PM2)
-            pm2 restart thrifter-backend-staging || pm2 start dist/index.js --name thrifter-backend-staging
+            pm2 restart Thrifter_Backend_Staging || pm2 start dist/index.js --name Thrifter_Backend_Staging
             pm2 save
 
             # Cleanup
             rm ../deploy.tar.gz
 
             # Keep only last 3 backups
-            ls -t ../backup-* 2>/dev/null | tail -n +4 | xargs rm -rf
-          EOF
+            cd ..
+            ls -t backup-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+
+            echo '✅ Backend deployment completed successfully!'
+          "
 
       - name: ✅ Deployment successful
         run: |
           echo "🎉 Backend deployed to staging successfully!"
-          echo "🔗 Staging URL: https://staging-api.yourdomain.com"
+          echo "🔗 API URL: https://api.gothriftier.com/v1"
           echo "📅 Deployed at: $(date)"
 
       - name: 🚨 Notify on failure
