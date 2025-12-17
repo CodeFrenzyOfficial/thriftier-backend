@@ -1,5 +1,5 @@
 import express, { Application } from "express";
-// import cors from "cors";
+import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
@@ -11,12 +11,13 @@ import { initPrisma } from "./db";
 
 export const createApp = (): Application => {
   const app = express();
+  app.use(cors({
+    origin: "*"
+  }));
 
   // Basic security and parsers
-  app.use(helmet());
-  // app.use(cors({
-  //   origin: "*"
-  // }));
+  // app.use(helmet());
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -54,7 +55,6 @@ export const createApp = (): Application => {
       timestamp: new Date().toISOString(),
     });
   });
-
   // API routes
   app.use("/api", routes);
 
