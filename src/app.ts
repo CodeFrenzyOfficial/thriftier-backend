@@ -12,11 +12,11 @@ import { initPrisma } from "./db";
 export const createApp = (): Application => {
   const app = express();
   app.use(cors({
-    origin: "*"
+    origin: "http://localhost:3000"
   }));
 
   // Basic security and parsers
-  // app.use(helmet());
+  app.use(helmet());
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));

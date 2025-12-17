@@ -52,6 +52,12 @@ router.put("/:id", authenticate, isOwnerOrAdmin, userController.updateUser);
  */
 router.delete("/:id", authenticate, isAdmin, userController.deleteUser);
 
+
+/**
+ * @route   GET /v1/users/admin/contacts
+ * @desc    Get Contacted Entries (Admin only)
+ * @access  Private/Admin
+ */
 // Route to show Contacted Entries through main app form (ADMIN)
 router.get("/admin/contacts", authenticate, isAdmin, getContacts);
 
