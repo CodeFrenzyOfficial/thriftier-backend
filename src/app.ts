@@ -12,10 +12,20 @@ import { initSendgrid } from "./services/email.service";
 
 export const createApp = (): Application => {
   const app = express();
+  app.use(
+    cors({
+      origin: [
+        "http://localhost:3000",
+        "https://admin.gothriftier.com",
+        "http://localhost:5173",
+        "https://staging.gothriftier.com",
+      ],
+    })
+  );
 
   // Basic security and parsers
   app.use(helmet());
-  app.use(cors());
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -57,7 +67,6 @@ export const createApp = (): Application => {
       memoryUsage: process.memoryUsage(),
     });
   });
-
   // API routes
   app.use("", routes);
 
