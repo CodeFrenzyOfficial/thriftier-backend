@@ -1,6 +1,5 @@
 import express, { Application } from "express";
 import cors from "cors";
-import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import { StatusCodes } from "http-status-codes";
@@ -8,6 +7,8 @@ import routes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFoundHandler } from "./middlewares/notFoundHandler";
 import { initPrisma } from "./db";
+import helmet from "helmet";
+import { initSendgrid } from "./services/email.service";
 
 export const createApp = (): Application => {
   const app = express();

@@ -52,8 +52,32 @@ router.post("/verify-email", authenticate, authController.verifyEmail);
 /**
  * @route   PUT /v1/auth/change-password
  * @desc    Change user password
+ * @access  Private (Admin Side Route)
+ */
+// router.put("/change-password", authenticate, authController.changePassword);
+
+
+/**
+ * @route   PUT /v1/auth/verify-otp
+ * @desc    Verify OTP during login
  * @access  Private
  */
-router.put("/change-password", authenticate, authController.changePassword);
+router.put("/verify-otp", authController.verifyOtp);
+
+// Main App Routes
+/**
+ * @route   PUT /v1/auth/forgot-password
+ * @desc    Verify OTP during login
+ * @access  Private
+ */
+router.post("/forgot-password", authController.forgotPassword);
+
+/**
+ * @route   PUT /v1/auth/confirm-reset-password
+ * @desc    Verify OTP during login
+ * @access  Private
+ */
+router.put("/confirm-reset-password", authController.confirmResetPassword);
+
 
 export default router;

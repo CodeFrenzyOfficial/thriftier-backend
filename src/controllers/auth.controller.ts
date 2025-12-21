@@ -2,134 +2,204 @@ import { Request, Response, NextFunction } from "express";
 import { StatusCodes } from "http-status-codes";
 import { authService } from "../services/auth.service";
 import { catchAsync } from "../utils/catchAsync";
-import { RegisterInput, LoginInput } from "../types/auth.types";
+import { RegisterInput, LoginInput, JwtPayload } from "../types/auth.types";
+import { ApiError } from "../utils/ApiError";
+import { prisma } from "../config/database";
+import { generateTokenPair } from "../utils/jwt";
 
-  /**
-   * Register a new user
-   * POST /api/v1/auth/register
-   */
-const register = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const input: RegisterInput = req.body;
+/**
+ * Register a new user
+ * POST /api/v1/auth/register
+ */
+export const register = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const input: RegisterInput = req.body;
+    const result = await authService.register(input);
 
-      const result = await authService.register(input);
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message:
+        result.kind === "OTP_REQUIRED"
+          ? "User registered. OTP sent to email."
+          : "User registered successfully",
+      data: result,
+    });
+  }
+);
 
-      res.status(StatusCodes.CREATED).json({
-        success: true,
-        message: "User registered successfully",
-        data: result,
-      });
-    }
-  );
+/**
+ * Login user
+ * POST /api/v1/auth/login
+ * Returns: JWT token with email, name, and role in the payload
+ */
+export const login = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const input: LoginInput = req.body;
+    const result = await authService.login(input);
 
-  /**
-   * Login user
-   * POST /api/v1/auth/login
-   * Returns: JWT token with email, name, and role in the payload
-   */
-const login = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const input: LoginInput = req.body;
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message:
+        result.kind === "OTP_REQUIRED"
+          ? "OTP verification required"
+          : "Login successful",
+      data: result,
+    });
+  }
+);
 
-      const result = await authService.login(input);
-
-      // The JWT token already contains email, name, and role
-      // These are decoded and attached to req.user by the authenticate middleware
-
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Login successful",
-        data: {
-          user: result.user,
-          tokens: result.tokens,
-          // Explicitly showing what's in the JWT token payload
-          tokenPayload: {
-            email: result.user.email,
-            name: result.user.name,
-            role: result.user.role,
-          },
-        },
-      });
-    }
-  );
-
-  /**
-   * Refresh access token
-   * POST /api/v1/auth/refresh
-   */
+/**
+ * Refresh access token
+ * POST /api/v1/auth/refresh
+ */
 const refreshToken = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const { refreshToken } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { refreshToken } = req.body;
 
-      const result = await authService.refreshToken(refreshToken);
+    const result = await authService.refreshToken(refreshToken);
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Token refreshed successfully",
-        data: result,
-      });
-    }
-  );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Token refreshed successfully",
+      data: result,
+    });
+  }
+);
 
-  /**
-   * Logout user
-   * POST /api/v1/auth/logout
-   */
+/**
+ * Logout user
+ * POST /api/v1/auth/logout
+ */
 const logout = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const { refreshToken } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { refreshToken } = req.body;
 
-      await authService.logout(refreshToken);
+    await authService.logout(refreshToken);
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Logout successful",
-      });
-    }
-  );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Logout successful",
+    });
+  }
+);
 
-  /**
-   * Get current user profile
-   * GET /api/v1/auth/me
-   * Requires authentication
-   */
+/**
+ * Get current user profile
+ * GET /api/v1/auth/me
+ * Requires authentication
+ */
 const getMe = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      // User data is already attached to req.user by authenticate middleware
-      // This includes email, name, and role decoded from JWT token
+  async (req: Request, res: Response, next: NextFunction) => {
+    // User data is already attached to req.user by authenticate middleware
+    // This includes email, name, and role decoded from JWT token
 
-      const user = await authService.getUserById(req.user!.userId);
+    const user = await authService.getUserById(req.user!.userId);
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "User profile retrieved successfully",
-        data: {
-          user,
-          // Show the decoded JWT payload that was attached to the request
-          decodedToken: {
-            email: req.user!.email,
-            name: req.user!.name,
-            role: req.user!.role,
-          },
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "User profile retrieved successfully",
+      data: {
+        user,
+        // Show the decoded JWT payload that was attached to the request
+        decodedToken: {
+          email: req.user!.email,
+          name: req.user!.name,
+          role: req.user!.role,
         },
-      });
-    }
-  );
+      },
+    });
+  }
+);
 
-  /**
-   * Verify user email
-   * POST /api/v1/auth/verify-email
-   */
+/**
+ * Verify user email
+ * POST /api/v1/auth/verify-email
+ */
 const verifyEmail = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      await authService.verifyEmail(req.user!.userId);
+  async (req: Request, res: Response, next: NextFunction) => {
+    await authService.verifyEmail(req.user!.userId);
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Email verified successfully",
-      });
-    }
-  );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Email verified successfully",
+    });
+  }
+);
+
+/**
+ * Verify email OTP and issue tokens
+ * POST /api/v1/auth/verify-otp
+ */
+const verifyOtp = catchAsync(async (req: Request, res: Response) => {
+  const { email, code } = req.body as { email?: string; code?: string };
+
+  if (!email) throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+  if (!code)
+    throw new ApiError(StatusCodes.BAD_REQUEST, "OTP code is required");
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+
+  if (!user.isActive) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Your account has been deactivated"
+    );
+  }
+  if (user.deletedAt) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "Your account has been deleted");
+  }
+
+  // Verify OTP (this sets user.isVerified=true inside transaction)
+  await authService.verifyEmailOtp(user.id, code);
+
+  // Re-fetch to ensure latest state
+  const updatedUser = await prisma.user.findUnique({ where: { email } });
+  if (!updatedUser || !updatedUser.isVerified) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "OTP verification failed");
+  }
+
+  const jwtPayload: JwtPayload = {
+    userId: updatedUser.id,
+    email: updatedUser.email,
+    name: updatedUser.name,
+    role: updatedUser.role,
+    location: updatedUser.location,
+    phoneNumber: updatedUser.phoneNumber,
+  };
+
+  const tokens = generateTokenPair(jwtPayload);
+
+  // Store refresh token
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  await prisma.refreshToken.create({
+    data: {
+      token: tokens.refreshToken,
+      userId: updatedUser.id,
+      expiresAt,
+    },
+  });
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    message: "OTP verified successfully",
+    data: {
+      kind: "SUCCESS",
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        location: updatedUser.location,
+        role: updatedUser.role,
+        phoneNumber: updatedUser.phoneNumber,
+        isVerified: updatedUser.isVerified,
+      },
+      tokens,
+    },
+  });
+});
 
 /**
  * Change user password
@@ -153,6 +223,41 @@ const changePassword = catchAsync(
   }
 );
 
+// Forgot password - request reset (User MAin App Controllers)
+const forgotPassword = catchAsync(
+  async (req: Request, res: Response) => {
+    const { email } = req.body as { email?: string };
+
+    await authService.requestPasswordReset(email ?? "");
+
+    //  Always success
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message:
+        "If an account exists for this email, a reset link has been sent.",
+    });
+  }
+);
+
+const confirmResetPassword = catchAsync(
+  async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body as {
+      token?: string;
+      newPassword?: string;
+    };
+
+    await authService.resetPassword({
+      token: token ?? "",
+      newPassword: newPassword ?? "",
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Password reset successfully",
+    });
+  }
+);
+
 export const authController = {
   register,
   login,
@@ -161,4 +266,7 @@ export const authController = {
   getMe,
   verifyEmail,
   changePassword,
+  verifyOtp,
+  confirmResetPassword,
+  forgotPassword
 };

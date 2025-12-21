@@ -7,6 +7,7 @@ export interface RegisterInput {
   location: string;
   phoneNumber: string;
   role?: Role;
+  reqFromAdmin?: boolean;
 }
 
 export interface LoginInput {
@@ -28,18 +29,39 @@ export interface TokenResponse {
   refreshToken: string;
 }
 
-export interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    location: string;
-    role: Role;
-    phoneNumber: string;
-  };
+export type SafeUser = {
+  id: string;
+  email: string;
+  name: string;
+  location: string;
+  role: Role;
+  phoneNumber: string;
+  isVerified: boolean;
+};
+
+export type AuthSuccessResponse = {
+  kind: "SUCCESS";
+  user: SafeUser;
   tokens: TokenResponse;
-}
+};
+
+export type OtpRequiredResponse = {
+  kind: "OTP_REQUIRED";
+  user: SafeUser;
+  otpRequired: true;
+};
+
+export type AuthResponse = AuthSuccessResponse | OtpRequiredResponse;
 
 export interface RefreshTokenInput {
   refreshToken: string;
+}
+
+export interface VerifyOtpInput {
+  email: string;
+  code: string;
+}
+
+export interface ResendOtpInput {
+  email: string;
 }

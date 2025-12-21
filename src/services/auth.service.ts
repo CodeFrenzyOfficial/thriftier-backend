@@ -13,8 +13,33 @@ import {
   LoginInput,
   AuthResponse,
   JwtPayload,
+  SafeUser,
 } from "../types/auth.types";
 import { logger } from "../utils/logger";
+import {
+  addMinutes,
+  generateOtpCode,
+  generateResetToken,
+  hashOtp,
+  hashResetToken,
+  OTP_MAX_ATTEMPTS,
+  OTP_RESEND_COOLDOWN_SECONDS,
+  OTP_TTL_MINUTES,
+} from "../utils/auth-helpers";
+import { sendVerifyOtpEmail } from "../templates/sendOTP";
+import { sendResetPasswordEmail } from "../templates/sendResetPassword.template";
+
+function toSafeUser(user: User): SafeUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    location: user.location,
+    role: user.role,
+    phoneNumber: user.phoneNumber,
+    isVerified: user.isVerified,
+  };
+}
 
 /**
  * Register a new user
@@ -27,67 +52,62 @@ const register = async (input: RegisterInput): Promise<AuthResponse> => {
     location,
     phoneNumber,
     role = Role.USER,
+    reqFromAdmin = false,
   } = input;
 
-  // Validate required fields
+  // ---------- validations (your existing logic preserved)
   const errors: string[] = [];
 
-  if (!email) {
-    errors.push("Email is required");
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email) errors.push("Email is required");
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     errors.push("Invalid email format");
-  }
 
-  if (!password) {
-    errors.push("Password is required");
-  } else if (password.length < 8) {
+  if (!password) errors.push("Password is required");
+  else if (password.length < 8)
     errors.push("Password must be at least 8 characters long");
-  } else {
+  else {
     const passwordValidation = validatePasswordStrength(password);
-    if (!passwordValidation.isValid) {
-      errors.push(...passwordValidation.errors);
-    }
+    if (!passwordValidation.isValid) errors.push(...passwordValidation.errors);
   }
-  if (!phoneNumber) {
-    errors.push("Phone number is required");
-  } else if (
-    !/^\+?[1-9]\d{1,14}$/.test(phoneNumber.replace(/[\s\-\(\)]/g, ""))
-  ) {
+
+  if (!phoneNumber) errors.push("Phone number is required");
+  else if (!/^\+?[1-9]\d{1,14}$/.test(phoneNumber.replace(/[\s\-\(\)]/g, "")))
     errors.push("Invalid phone number format");
-  }
 
-  if (!name) {
-    errors.push("Name is required");
-  } else if (name.trim().length < 2) {
+  if (!name) errors.push("Name is required");
+  else if (name.trim().length < 2)
     errors.push("Name must be at least 2 characters long");
-  }
 
-  if (!location) {
-    errors.push("Location is required");
-  } else if (location.trim().length < 2) {
+  if (!location) errors.push("Location is required");
+  else if (location.trim().length < 2)
     errors.push("Location must be at least 2 characters long");
-  }
 
-  if (errors.length > 0) {
+  if (errors.length > 0)
     throw new ApiError(StatusCodes.BAD_REQUEST, errors.join(", "));
-  }
 
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
+  const existing = await prisma.user.findFirst({
+    where: {
+      OR: [{ email }, { phoneNumber }],
+    },
+    select: { email: true, phoneNumber: true },
   });
 
-  if (existingUser) {
+  if (existing) {
+    if (existing.email === email) {
+      throw new ApiError(
+        StatusCodes.CONFLICT,
+        "User with this email already exists"
+      );
+    }
     throw new ApiError(
       StatusCodes.CONFLICT,
-      "User with this email already exists"
+      "User with this phone number already exists"
     );
   }
 
-  // Hash password
+  // ---------- create user
   const hashedPassword = await hashPassword(password);
 
-  // Create user
   const user = await prisma.user.create({
     data: {
       email,
@@ -96,46 +116,52 @@ const register = async (input: RegisterInput): Promise<AuthResponse> => {
       location,
       phoneNumber,
       role,
+      isVerified: reqFromAdmin ? true : false,
     },
   });
 
-  logger.info(`New user registered: ${user.email} with role ${user.role}`);
+  logger.info(
+    `New user registered: ${user.email} with role ${user.role} (reqFromAdmin=${reqFromAdmin})`
+  );
 
-  // Generate tokens
-  const jwtPayload: JwtPayload = {
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    location: user.location,
-    phoneNumber: user.phoneNumber,
-  };
+  const safeUser = toSafeUser(user);
 
-  const tokens = generateTokenPair(jwtPayload);
-
-  // Store refresh token
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-
-  await prisma.refreshToken.create({
-    data: {
-      token: tokens.refreshToken,
+  //  ADMIN FLOW: directly issue tokens
+  if (reqFromAdmin) {
+    const jwtPayload: JwtPayload = {
       userId: user.id,
-      expiresAt,
-    },
-  });
-
-  return {
-    user: {
-      id: user.id,
       email: user.email,
       name: user.name,
-      location: user.location,
       role: user.role,
+      location: user.location,
       phoneNumber: user.phoneNumber,
-    },
-    tokens,
-  };
+    };
+
+    const tokens = generateTokenPair(jwtPayload);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await prisma.refreshToken.create({
+      data: {
+        token: tokens.refreshToken,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    return { kind: "SUCCESS", user: safeUser, tokens };
+  }
+
+  //  NORMAL USER FLOW: send OTP; no tokens
+  const { code } = await createAndStoreEmailOtp(user.id);
+  await sendVerifyOtpEmail({
+    toEmail: user.email,
+    toName: user.name,
+    otp: code,
+  });
+
+  return { kind: "OTP_REQUIRED", user: safeUser, otpRequired: true };
 };
 
 /**
@@ -144,31 +170,18 @@ const register = async (input: RegisterInput): Promise<AuthResponse> => {
 const login = async (input: LoginInput): Promise<AuthResponse> => {
   const { email, password } = input;
 
-  // Validate required fields
+  // ---------- validations
   const errors: string[] = [];
-
-  if (!email) {
-    errors.push("Email is required");
-  }
-
-  if (!password) {
-    errors.push("Password is required");
-  }
-
-  if (errors.length > 0) {
+  if (!email) errors.push("Email is required");
+  if (!password) errors.push("Password is required");
+  if (errors.length > 0)
     throw new ApiError(StatusCodes.BAD_REQUEST, errors.join(", "));
-  }
 
-  // Find user by email
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
-
-  if (!user) {
+  // ---------- find user
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user)
     throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid email or password");
-  }
 
-  // Check if user is active
   if (!user.isActive) {
     throw new ApiError(
       StatusCodes.FORBIDDEN,
@@ -176,20 +189,35 @@ const login = async (input: LoginInput): Promise<AuthResponse> => {
     );
   }
 
-  // Check if user is soft deleted
   if (user.deletedAt) {
     throw new ApiError(StatusCodes.FORBIDDEN, "Your account has been deleted");
   }
 
-  // Verify password
+  // ---------- verify password
   const isPasswordValid = await comparePassword(password, user.password);
-  if (!isPasswordValid) {
+  if (!isPasswordValid)
     throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid email or password");
+
+  logger.info(`User login attempt: ${user.email}`);
+
+  const safeUser = toSafeUser(user);
+
+  //  OTP gate
+  if (!user.isVerified) {
+    const okToResend = await canResendOtp(user.id);
+    if (okToResend) {
+      const { code } = await createAndStoreEmailOtp(user.id);
+      await sendVerifyOtpEmail({
+        toEmail: user.email,
+        toName: user.name,
+        otp: code,
+      });
+    }
+
+    return { kind: "OTP_REQUIRED", user: safeUser, otpRequired: true };
   }
 
-  logger.info(`User logged in: ${user.email}`);
-
-  // Generate tokens
+  //  verified -> issue tokens (same as your current flow)
   const jwtPayload: JwtPayload = {
     userId: user.id,
     email: user.email,
@@ -201,9 +229,8 @@ const login = async (input: LoginInput): Promise<AuthResponse> => {
 
   const tokens = generateTokenPair(jwtPayload);
 
-  // Store refresh token
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+  expiresAt.setDate(expiresAt.getDate() + 7);
 
   await prisma.refreshToken.create({
     data: {
@@ -213,17 +240,9 @@ const login = async (input: LoginInput): Promise<AuthResponse> => {
     },
   });
 
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      location: user.location,
-      role: user.role,
-      phoneNumber: user.phoneNumber,
-    },
-    tokens,
-  };
+  logger.info(`User logged in: ${user.email}`);
+
+  return { kind: "SUCCESS", user: safeUser, tokens };
 };
 
 /**
@@ -354,7 +373,7 @@ const checkOwnerOrAdmin = (
 };
 
 /**
- * Change user password
+ * Change Password ADMIN SIDE Service
  */
 const changePassword = async (
   userId: string,
@@ -408,6 +427,223 @@ const changePassword = async (
   logger.info(`Password changed for user: ${userId}`);
 };
 
+const createAndStoreEmailOtp = async (userId: string) => {
+  const code = generateOtpCode(6);
+  const codeHash = hashOtp(code);
+  const expiresAt = addMinutes(new Date(), OTP_TTL_MINUTES);
+
+  // optional: invalidate old unused OTPs
+  await prisma.emailOtp.updateMany({
+    where: { userId, purpose: "VERIFY_EMAIL", consumedAt: null },
+    data: { consumedAt: new Date() }, // mark old ones as consumed/invalidated
+  });
+
+  const otp = await prisma.emailOtp.create({
+    data: {
+      userId,
+      codeHash,
+      expiresAt,
+      purpose: "VERIFY_EMAIL",
+    },
+  });
+
+  return { code, otpId: otp.id, expiresAt };
+};
+
+const canResendOtp = async (userId: string) => {
+  const latest = await prisma.emailOtp.findFirst({
+    where: { userId, purpose: "VERIFY_EMAIL", consumedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!latest) return true;
+
+  const secondsSince = (Date.now() - latest.createdAt.getTime()) / 1000;
+  return secondsSince >= OTP_RESEND_COOLDOWN_SECONDS;
+};
+
+const verifyEmailOtp = async (userId: string, code: string) => {
+  const otp = await prisma.emailOtp.findFirst({
+    where: {
+      userId,
+      purpose: "VERIFY_EMAIL",
+      consumedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!otp) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "OTP not found. Please request a new code."
+    );
+  }
+
+  if (otp.expiresAt.getTime() < Date.now()) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "OTP expired. Please request a new code."
+    );
+  }
+
+  if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+    throw new ApiError(
+      StatusCodes.TOO_MANY_REQUESTS,
+      "Too many attempts. Request a new code."
+    );
+  }
+
+  const incomingHash = hashOtp(code.trim());
+
+  if (incomingHash !== otp.codeHash) {
+    await prisma.emailOtp.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+    });
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid OTP.");
+  }
+
+  // success: consume OTP + verify user
+  await prisma.$transaction([
+    // mark current OTP consumed (optional if you delete all anyway)
+    prisma.emailOtp.update({
+      where: { id: otp.id },
+      data: { consumedAt: new Date() },
+    }),
+
+    // mark user verified
+    prisma.user.update({
+      where: { id: userId },
+      data: { isVerified: true },
+    }),
+
+    // delete all OTPs for this user/purpose (keeps DB minimal)
+    prisma.emailOtp.deleteMany({
+      where: { userId, purpose: "VERIFY_EMAIL" },
+    }),
+  ]);
+
+  return true;
+};
+
+// Reset Password Services For User MAIN APP
+const RESET_TOKEN_TTL_MINUTES = Number(
+  process.env.RESET_TOKEN_TTL_MINUTES || 15
+);
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+
+const requestPasswordReset = async (email: string) => {
+  if (!email) throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  // Always respond success (don’t leak whether user exists)
+  if (!user) return;
+
+  if (!user.isActive || user.deletedAt) return;
+
+  const rawToken = generateResetToken();
+  const tokenHash = hashResetToken(rawToken);
+  const expiresAt = addMinutes(new Date(), RESET_TOKEN_TTL_MINUTES);
+
+  // Optional: invalidate previous unused tokens
+  await prisma.passwordResetToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+  const resetUrl = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
+
+  await sendResetPasswordEmail({
+    toEmail: user.email,
+    toName: user.name,
+    resetUrl,
+  });
+};
+
+const resetPassword = async (params: {
+  token: string;
+  newPassword: string;
+}) => {
+  const { token, newPassword } = params;
+
+  if (!token) throw new ApiError(StatusCodes.BAD_REQUEST, "Token is required");
+  if (!newPassword)
+    throw new ApiError(StatusCodes.BAD_REQUEST, "New password is required");
+  if (newPassword.length < 8) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Password must be at least 8 characters long"
+    );
+  }
+
+  const passwordValidation = validatePasswordStrength(newPassword);
+  if (!passwordValidation.isValid) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      passwordValidation.errors.join(", ")
+    );
+  }
+
+  const tokenHash = hashResetToken(token);
+
+  const record = await prisma.passwordResetToken.findFirst({
+    where: {
+      tokenHash,
+      usedAt: null,
+    },
+    include: { user: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!record) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Invalid or already used token"
+    );
+  }
+
+  if (record.expiresAt.getTime() < Date.now()) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Token expired. Please request again."
+    );
+  }
+
+  if (!record.user.isActive || record.user.deletedAt) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "User account is not active");
+  }
+
+  const hashed = await hashPassword(newPassword);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { password: hashed },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+    // Optional: delete all other reset tokens for this user
+    prisma.passwordResetToken.deleteMany({
+      where: { userId: record.userId, id: { not: record.id } },
+    }),
+    // Optional but recommended: revoke refresh tokens to force re-login
+    prisma.refreshToken.deleteMany({
+      where: { userId: record.userId },
+    }),
+  ]);
+};
+
 export const authService = {
   register,
   login,
@@ -419,4 +655,7 @@ export const authService = {
   checkUserRole,
   checkOwnerOrAdmin,
   changePassword,
+  verifyEmailOtp,
+  resetPassword,
+  requestPasswordReset,
 };
