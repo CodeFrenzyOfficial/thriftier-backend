@@ -152,7 +152,7 @@ jobs:
 
 
             # Restart application (using PM2)
-            pm2 restart Thrifter_Backend_Staging || pm2 start dist/index.js --name Thrifter_Backend_Staging
+            pm2 restart Thrifter_Backend_Staging || pm2 start dist/src/server.js --name Thrifter_Backend_Staging
             pm2 save
 
             # Cleanup
