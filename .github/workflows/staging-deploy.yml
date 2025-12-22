@@ -39,6 +39,15 @@ jobs:
           JWT_ACCESS_EXPIRATION: ${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
           JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
           CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
+          OTP_TTL_MINUTES: ${{ secrets.STAGING_OTP_TTL_MINUTES }}
+          OTP_MAX_ATTEMPTS: ${{ secrets.STAGING_OTP_MAX_ATTEMPTS }}
+          OTP_RESEND_COOLDOWN_SECONDS: ${{ secrets.STAGING_OTP_RESEND_COOLDOWN_SECONDS }}
+          RESET_TOKEN_TTL_MINUTES: ${{ secrets.STAGING_RESET_TOKEN_TTL_MINUTES }}
+          FRONTEND_URL: ${{ secrets.STAGING_FRONTEND_URL }}
+          LOG_LEVEL: ${{ secrets.STAGING_LOG_LEVEL }}
+          SENDGRID_FROM_NAME: ${{ secrets.STAGING_SENDGRID_FROM_NAME }}
+          SENDGRID_FROM_EMAIL: ${{ secrets.STAGING_SENDGRID_FROM_EMAIL }}
+          SENDGRID_API_KEY: ${{ secrets.STAGING_SENDGRID_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -54,12 +63,32 @@ jobs:
 
           # Create .env file locally with actual values
           {
-            echo "NODE_ENV=staging"
-            echo "PORT=3000"
-            echo "DATABASE_URL=$DATABASE_URL"
+            echo "# Auth Variables"
+            echo "OTP_TTL_MINUTES=$OTP_TTL_MINUTES"
+            echo "OTP_MAX_ATTEMPTS=$OTP_MAX_ATTEMPTS"
+            echo "OTP_RESEND_COOLDOWN_SECONDS=$OTP_RESEND_COOLDOWN_SECONDS"
             echo "JWT_SECRET=$JWT_SECRET"
             echo "JWT_ACCESS_EXPIRATION=$JWT_ACCESS_EXPIRATION"
             echo "JWT_REFRESH_EXPIRATION=$JWT_REFRESH_EXPIRATION"
+            echo "RESET_TOKEN_TTL_MINUTES=$RESET_TOKEN_TTL_MINUTES"
+            echo ""
+            echo "# Frontend URL"
+            echo "FRONTEND_URL=$FRONTEND_URL"
+            echo ""
+            echo "# Server Variables"
+            echo "NODE_ENV=staging"
+            echo "PORT=3000"
+            echo "LOG_LEVEL=$LOG_LEVEL"
+            echo ""
+            echo "# Database"
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo ""
+            echo "# Twilio SendGrid API"
+            echo "SENDGRID_FROM_NAME=$SENDGRID_FROM_NAME"
+            echo "SENDGRID_FROM_EMAIL=$SENDGRID_FROM_EMAIL"
+            echo "SENDGRID_API_KEY=$SENDGRID_API_KEY"
+            echo ""
+            echo "# CORS"
             echo "CORS_ORIGIN=$CORS_ORIGIN"
           } > deploy/.env
 
@@ -80,6 +109,15 @@ jobs:
           JWT_ACCESS_EXPIRATION: ${{ secrets.STAGING_JWT_ACCESS_EXPIRATION }}
           JWT_REFRESH_EXPIRATION: ${{ secrets.STAGING_JWT_REFRESH_EXPIRATION }}
           CORS_ORIGIN: ${{ secrets.STAGING_CORS_ORIGIN }}
+          OTP_TTL_MINUTES: ${{ secrets.STAGING_OTP_TTL_MINUTES }}
+          OTP_MAX_ATTEMPTS: ${{ secrets.STAGING_OTP_MAX_ATTEMPTS }}
+          OTP_RESEND_COOLDOWN_SECONDS: ${{ secrets.STAGING_OTP_RESEND_COOLDOWN_SECONDS }}
+          RESET_TOKEN_TTL_MINUTES: ${{ secrets.STAGING_RESET_TOKEN_TTL_MINUTES }}
+          FRONTEND_URL: ${{ secrets.STAGING_FRONTEND_URL }}
+          LOG_LEVEL: ${{ secrets.STAGING_LOG_LEVEL }}
+          SENDGRID_FROM_NAME: ${{ secrets.STAGING_SENDGRID_FROM_NAME }}
+          SENDGRID_FROM_EMAIL: ${{ secrets.STAGING_SENDGRID_FROM_EMAIL }}
+          SENDGRID_API_KEY: ${{ secrets.STAGING_SENDGRID_API_KEY }}
         run: |
           # Add server to known hosts
           ssh-keyscan -H $STAGING_HOST >> ~/.ssh/known_hosts
@@ -114,7 +152,7 @@ jobs:
 
 
             # Restart application (using PM2)
-            pm2 restart Thrifter_Backend_Staging || pm2 start dist/index.js --name Thrifter_Backend_Staging
+            pm2 restart Thrifter_Backend_Staging || pm2 start dist/src/server.js --name Thrifter_Backend_Staging
             pm2 save
 
             # Cleanup
