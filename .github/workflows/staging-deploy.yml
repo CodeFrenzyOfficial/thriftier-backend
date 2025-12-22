@@ -77,7 +77,7 @@ jobs:
             echo ""
             echo "# Server Variables"
             echo "NODE_ENV=staging"
-            echo "PORT=8000"
+            echo "PORT=3000"
             echo "LOG_LEVEL=$LOG_LEVEL"
             echo ""
             echo "# Database"
