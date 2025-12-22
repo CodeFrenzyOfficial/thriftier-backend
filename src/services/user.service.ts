@@ -106,7 +106,7 @@ const getUserById = async (id: string): Promise<Omit<User, "password">> => {
 };
 
 /**
- * Create a new user
+ * Create a new user (Admin only - uses auth service with reqFromAdmin flag)
  */
 const createUser = async (payload: {
   name: string;
@@ -116,73 +116,32 @@ const createUser = async (payload: {
   phoneNumber: string;
   role?: string;
 }): Promise<Omit<User, "password">> => {
-  const { hashPassword } = require("../utils/password");
+  const { authService } = require("./auth.service");
   const { Role } = require("@prisma/client");
 
-  // Validate required fields
-  const errors: string[] = [];
-
-  if (!payload.email) {
-    errors.push("Email is required");
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
-    errors.push("Invalid email format");
-  }
-
-  if (!payload.password) {
-    errors.push("Password is required");
-  } else if (payload.password.length < 8) {
-    errors.push("Password must be at least 8 characters long");
-  }
-
-  if (!payload.name) {
-    errors.push("Name is required");
-  } else if (payload.name.trim().length < 2) {
-    errors.push("Name must be at least 2 characters long");
-  }
-
-  if (!payload.location) {
-    errors.push("Location is required");
-  } else if (payload.location.trim().length < 2) {
-    errors.push("Location must be at least 2 characters long");
-  }
-
-  if (!payload.phoneNumber) {
-    errors.push("Phone number is required");
-  } else if (
-    !/^\+?[1-9]\d{1,14}$/.test(payload.phoneNumber.replace(/[\s\-\(\)]/g, ""))
-  ) {
-    errors.push("Invalid phone number format");
-  }
-
-  if (errors.length > 0) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, errors.join(", "));
-  }
-
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email: payload.email },
+  // Use authService.register with reqFromAdmin flag
+  // This ensures consistent validation, auto-verification, and no OTP requirement
+  const result = await authService.register({
+    name: payload.name,
+    email: payload.email,
+    location: payload.location,
+    password: payload.password,
+    phoneNumber: payload.phoneNumber,
+    role: payload.role || Role.USER,
+    reqFromAdmin: true, // Skip OTP, auto-verify user
   });
 
-  if (existingUser) {
+  // Return the user data (result should be SUCCESS type since reqFromAdmin=true)
+  if (result.kind !== "SUCCESS") {
     throw new ApiError(
-      StatusCodes.CONFLICT,
-      "User with this email already exists"
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Expected SUCCESS response for admin-created user"
     );
   }
 
-  // Hash password
-  const hashedPassword = await hashPassword(payload.password);
-
-  // Create user with provided role or default to USER
-  const user = await prisma.user.create({
-    data: {
-      email: payload.email,
-      name: payload.name,
-      location: payload.location,
-      password: hashedPassword,
-      role: payload.role || Role.USER,
-      phoneNumber: payload.phoneNumber,
-    },
+  // Fetch and return the complete user object
+  const user = await prisma.user.findUnique({
+    where: { id: result.user.id },
     select: {
       id: true,
       email: true,
@@ -198,6 +157,10 @@ const createUser = async (payload: {
       password: false,
     },
   });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User creation failed");
+  }
 
   return user;
 };

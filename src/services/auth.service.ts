@@ -202,8 +202,11 @@ const login = async (input: LoginInput): Promise<AuthResponse> => {
 
   const safeUser = toSafeUser(user);
 
-  //  OTP gate
-  if (!user.isVerified) {
+  //  Bypass OTP verification for ADMIN and DRIVER roles
+  const isAdminOrDriver = user.role === Role.ADMIN || user.role === Role.DRIVER;
+
+  //  OTP gate (skip for ADMIN/DRIVER)
+  if (!user.isVerified && !isAdminOrDriver) {
     const okToResend = await canResendOtp(user.id);
     if (okToResend) {
       const { code } = await createAndStoreEmailOtp(user.id);
@@ -217,7 +220,7 @@ const login = async (input: LoginInput): Promise<AuthResponse> => {
     return { kind: "OTP_REQUIRED", user: safeUser, otpRequired: true };
   }
 
-  //  verified -> issue tokens (same as your current flow)
+  //  verified OR admin/driver -> issue tokens
   const jwtPayload: JwtPayload = {
     userId: user.id,
     email: user.email,
@@ -240,7 +243,7 @@ const login = async (input: LoginInput): Promise<AuthResponse> => {
     },
   });
 
-  logger.info(`User logged in: ${user.email}`);
+  logger.info(`User logged in: ${user.email} (role: ${user.role})`);
 
   return { kind: "SUCCESS", user: safeUser, tokens };
 };
