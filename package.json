@@ -4,9 +4,9 @@
   "description": "Production-ready Node.js backend starter with TypeScript, Express, and layered architecture.",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.ts",
+    "dev": "node api.js && nodemon src/server.ts",
+    "build": "node api.js && tsc",
+    "start": "node api.js && node dist/server.ts",
     "seed": "ts-node prisma/seed.ts"
   },
   "prisma": {
