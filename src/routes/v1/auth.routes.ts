@@ -54,7 +54,7 @@ router.post("/verify-email", authenticate, authController.verifyEmail);
  * @desc    Change user password
  * @access  Private (Admin Side Route)
  */
-// router.put("/change-password", authenticate, authController.changePassword);
+router.put("/change-password", authenticate, authController.changePassword);
 
 
 /**

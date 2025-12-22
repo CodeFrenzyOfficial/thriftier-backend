@@ -7,6 +7,7 @@ dist
 .env.local
 .env.staging
 .env.production
+temp_auto_push.bat
 !.env.example
 
 npm-debug.log*
@@ -14,7 +15,8 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 .idea
-.vscode
 
 # Test files
 test-db-connection.js
+.gitignore
+branch_structure.json
