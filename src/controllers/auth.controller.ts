@@ -33,7 +33,7 @@ export const register = catchAsync(
  * Returns: JWT token with email, name, and role in the payload
  */
 export const login = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const input: LoginInput = req.body;
     const result = await authService.login(input);
 
